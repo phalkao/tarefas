@@ -1,0 +1,105 @@
+---
+# Volume
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dbdata
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: do-block-storage
+
+---
+# Deploy MySQL
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tarefas-mysql
+  labels:
+    app: tarefas
+spec:
+  selector:
+    matchLabels:
+      app: tarefas
+      tier: mysql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: tarefas
+        tier: mysql
+    spec:
+      containers:
+      - image: mysql:5.6
+        name: mysql
+        # env:
+        # - name: MYSQL_ROOT_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: mysql-pass
+        #       key: ${DB_PASSWORD}
+        ports:
+        - containerPort: 3306
+          name: mysql
+        volumeMounts:
+        - name: dbdata
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: dbdata
+        persistentVolumeClaim:
+          claimName: dbdata
+---
+# Service MySQL
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+spec:
+  ports:
+  - port: 3306
+  selector:
+    app: mysql
+  type: ClusterIP
+
+---
+# Deploy da aplicação Web
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: phalkao/tarefas:v1
+          ports:
+            - containerPort: 8000
+
+---
+# Service da aplicação Web
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  ports:
+    -
+      nodePort: 30000
+      port: 80
+      targetPort: 8000
+  selector:
+    app: web
+  type: LoadBalancer
+
